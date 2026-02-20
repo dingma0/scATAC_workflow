@@ -22,11 +22,9 @@ counts <- FeatureMatrix(
   cells = colnames(obj)
 )
 
-obj[["peaks_consensus"]] <- CreateChromatinAssay(
+obj[["peaks"]] <- CreateChromatinAssay(
   counts = counts,
   fragments = frags
 )
-
-DefaultAssay(obj) <- "peaks_consensus"
 
 saveRDS(obj, glue("{args$out_dir}/{args$sample_id}_atac_consensus.rds"))

@@ -109,6 +109,27 @@ process SIGNAC_BULK3 {
     """
 }
 
+process SIGNAC_AGGRE {
+    publishDir "$workflow.outputDir", mode:'copy'
+
+    input:
+    path(comb)
+    path(script)
+
+    output:
+    tuple path("signac/combined_atac_agg.rds"), path("signac/combined_atac_proc.rds"), emit: data
+    tuple path("signac/combined_atac_umap.png"), path("signac/combined_atac_umap_clustered.png"), emit: img
+
+    script:
+    """
+    mkdir -p signac
+
+    Rscript $script \
+        --comb $comb \
+        --out_dir signac
+    """
+}
+
 workflow {
     main:
     samples = channel.fromPath(params.sample_sheet).splitCsv(header:true)
@@ -130,4 +151,7 @@ workflow {
     SIGNAC_BULK3(SIGNAC_BULK2.out.collect { tuple -> tuple[1] },
                  SIGNAC_BULK2.out.collect { tuple -> tuple[2] },
                  SIGNAC_BULK2.out.collect { tuple -> tuple[3] }, bulk_script3)
+
+    agg_script = channel.fromPath("scripts/aggregate.R")
+    SIGNAC_AGGRE(SIGNAC_BULK3.out, agg_script)
 }
