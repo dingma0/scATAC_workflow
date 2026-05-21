@@ -138,20 +138,24 @@ workflow {
     annots = channel.fromPath("data/annotations.rds")
     SIGNAC_PREPO(samples, prepo_script, annots)
 
-    analysis_script = channel.fromPath("scripts/analysis.R")
-    SIGNAC_ANALYSIS(SIGNAC_PREPO.out.data, analysis_script)
+    if (params.single_cell) {
+        analysis_script = channel.fromPath("scripts/analysis.R")
+        SIGNAC_ANALYSIS(SIGNAC_PREPO.out.data, analysis_script)
+    }
 
-    bulk_script = channel.fromPath("scripts/bulk.R")
-    SIGNAC_BULK(SIGNAC_PREPO.out.data.collect { tuple -> tuple[1] }, bulk_script)
+    if (params.pseudobulk) {
+        bulk_script = channel.fromPath("scripts/bulk.R")
+        SIGNAC_BULK(SIGNAC_PREPO.out.data.collect { tuple -> tuple[1] }, bulk_script)
 
-    bulk_script2 = channel.fromPath("scripts/bulk2.R")
-    SIGNAC_BULK2(SIGNAC_PREPO.out.data, SIGNAC_BULK.out, bulk_script2)
+        bulk_script2 = channel.fromPath("scripts/bulk2.R")
+        SIGNAC_BULK2(SIGNAC_PREPO.out.data, SIGNAC_BULK.out, bulk_script2)
 
-    bulk_script3 = channel.fromPath("scripts/bulk3.R")
-    SIGNAC_BULK3(SIGNAC_BULK2.out.collect { tuple -> tuple[1] },
-                 SIGNAC_BULK2.out.collect { tuple -> tuple[2] },
-                 SIGNAC_BULK2.out.collect { tuple -> tuple[3] }, bulk_script3)
+        bulk_script3 = channel.fromPath("scripts/bulk3.R")
+        SIGNAC_BULK3(SIGNAC_BULK2.out.collect { tuple -> tuple[1] },
+                    SIGNAC_BULK2.out.collect { tuple -> tuple[2] },
+                    SIGNAC_BULK2.out.collect { tuple -> tuple[3] }, bulk_script3)
 
-    agg_script = channel.fromPath("scripts/aggregate.R")
-    SIGNAC_AGGRE(SIGNAC_BULK3.out, agg_script)
+        agg_script = channel.fromPath("scripts/aggregate.R")
+        SIGNAC_AGGRE(SIGNAC_BULK3.out, agg_script)
+    }
 }

@@ -23,7 +23,7 @@ if (length(vec) > 1) {
     combined <- merge(
       x = combined,
       y = obj,
-      project = "SyS_Batch_2"
+      project = "SyS"
     )
 
     rm(obj)
