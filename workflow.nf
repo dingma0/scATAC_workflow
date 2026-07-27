@@ -2,13 +2,14 @@ process SIGNAC_PREPO {
     publishDir "$workflow.outputDir", pattern:"signac/$sample_id/*.png", mode:'copy'
 
     input:
-    tuple val(sample_id), val(bivalency), path(h5), path(meta), path(frags), path(frags_idx)
-    each path(script)
-    each path(annots)
+    tuple val(sample_id), path(h5), path(meta), path(frags), path(frags_idx)
+    path script
+    path annots
+    path sc_params
 
     output:
     tuple val(sample_id), path("signac/$sample_id/${sample_id}_atac_pre.rds"), path(frags), path(frags_idx), emit: data
-    path("signac/$sample_id/${sample_id}_atac_pre_vln.png"), emit: img
+    path("signac/$sample_id/${sample_id}_atac_*.png"), emit: img
 
     script:
     """
@@ -17,12 +18,13 @@ process SIGNAC_PREPO {
 
     Rscript $script \
         --sample_id $sample_id \
-        --bivalency $bivalency \
         --h5 $h5 \
         --meta $meta \
         --frags $frags \
         --annots $annots \
         --out_dir signac/$sample_id \
+        --do_qc $params.qc_threshold \
+        --params $sc_params
     """
 }
 
@@ -31,11 +33,12 @@ process SIGNAC_ANALYSIS {
 
     input:
     tuple val(sample_id), path(prepo), path(frags), path(frags_idx)
-    each path(script)
+    path script
+    path sc_params
 
     output:
     tuple val(sample_id), path("signac/$sample_id/${sample_id}_atac.rds"), emit: data
-    tuple path("signac/$sample_id/${sample_id}_atac_post_vln.png"), path("signac/$sample_id/${sample_id}_atac_umap.png"), emit: img
+    path("signac/$sample_id/${sample_id}_atac_*.png"), emit: img
 
     script:
     """
@@ -44,7 +47,8 @@ process SIGNAC_ANALYSIS {
     Rscript $script \
         --sample_id $sample_id \
         --obj $prepo \
-        --out_dir signac/$sample_id
+        --out_dir signac/$sample_id \
+        --params $sc_params
     """
 }
 
@@ -134,13 +138,14 @@ workflow {
     main:
     samples = channel.fromPath(params.sample_sheet).splitCsv(header:true)
 
-    prepo_script = channel.fromPath("scripts/prepo.R")
-    annots = channel.fromPath("data/annotations.rds")
-    SIGNAC_PREPO(samples, prepo_script, annots)
+    prepo_script = channel.value(file("scripts/prepo.R"))
+    annots = channel.value(file("data/annotations.rds"))
+    sc_params = channel.value(file(params.sc_params))
+    SIGNAC_PREPO(samples, prepo_script, annots, sc_params)
 
     if (params.single_cell) {
-        analysis_script = channel.fromPath("scripts/analysis.R")
-        SIGNAC_ANALYSIS(SIGNAC_PREPO.out.data, analysis_script)
+        analysis_script = channel.value(file("scripts/analysis.R"))
+        SIGNAC_ANALYSIS(SIGNAC_PREPO.out.data, analysis_script, sc_params)
     }
 
     if (params.pseudobulk) {

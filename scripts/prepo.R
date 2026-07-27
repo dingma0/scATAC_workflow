@@ -8,12 +8,13 @@ library(glue)
 library(ggplot2)
 
 option_list = list(make_option("--sample_id", default = NULL),
-                   make_option("--bivalency", default = NULL),
                    make_option("--h5", default = NULL),
                    make_option("--meta", default = NULL),
                    make_option("--frags", default = NULL),
                    make_option("--annots", default = NULL),
-                   make_option("--out_dir", default = NULL))
+                   make_option("--out_dir", default = NULL),
+                   make_option("--do_qc", type = "character"),
+                   make_option("--params", default = NULL))
 args = parse_args(OptionParser(option_list = option_list))
 
 counts <- Read10X_h5(filename = args$h5)
@@ -64,21 +65,23 @@ qc_vln <- VlnPlot(
             features = c('nCount_peaks', 'TSS.enrichment', 'blacklist_ratio', 'nucleosome_signal', 'pct_reads_in_peaks'),
             pt.size = 0.1,
             ncol = 5)
-ggsave(glue("{args$out_dir}/{args$sample_id}_atac_pre_vln.png"), qc_vln)
+qc_sc <- DensityScatter(obj, x = 'nCount_peaks', y = 'TSS.enrichment', log_x = TRUE, quantiles = TRUE)
+ggsave(glue("{args$out_dir}/{args$sample_id}_atac_pre_vln.png"), qc_vln, units = "px", height = 400, width = 800, scale = 5)
+ggsave(glue("{args$out_dir}/{args$sample_id}_atac_pre_sc.png"), qc_sc, units = "px", height = 400, width = 600, scale = 5)
 
-is_outlier <- function(adata, metric, nmads) {
-    M <- adata@meta.data[[metric]]
-    outlier <- (M < median(M) - nmads * mad(M)) | (median(M) + nmads * mad(M) < M)
-    return(outlier)
+if (as.logical(args$do_qc)) {
+    params <- read.csv(args$params)
+    obj <- subset(x = obj, 
+                  subset = nCount_peaks > params$nCount_peaks_min &
+                    nCount_peaks < params$nCount_peaks_max &
+                    pct_reads_in_peaks > params$pct_reads_in_peaks &
+                    blacklist_ratio < params$blacklist_ratio &
+                    TSS.enrichment > params$TSS_enrichment &
+                    nucleosome_signal < params$nucleosome_signal
+    )
 }
 
-obj@meta.data$outlier <- is_outlier(obj, "nCount_peaks", 5)
-obj <- subset(x = obj, subset = blacklist_ratio < 0.01 &
-                nucleosome_signal < 4 &
-                outlier == FALSE)
-
-obj$ss_id <- args$sample_id
-obj$bivalency <- args$bivalency
+obj$sample_id <- args$sample_id
 
 saveRDS(obj, glue("{args$out_dir}/{args$sample_id}_atac_pre.rds"))
 
